@@ -1,0 +1,89 @@
+# CRISPR_pandas_merger
+Merges data frame in excel to compile CRISPR screen data
+
+#This script is to combine multiple .txt files into a single data frame
+
+#Imports all of the tools that will be needed
+
+import argparse
+
+import pandas as pd
+
+import sys
+
+import xlsxwriter
+
+#Set up the command line argument interface
+
+parser = argparse.ArgumentParser(description = """Welcome to the data set daisy
+                                chaining script. Please run the -i argument before the -g argument.""")
+
+parser.add_argument("-i", help = "Input file name (File containing: CiS, FPKM, mageckPvalue).",
+                    required = True, nargs = '+', type = argparse.FileType('r'))
+
+parser.add_argument("-g", help = "Gene information file name (File containing: chr, start, stop)",
+                    type = argparse.FileType('r'))
+
+parser.add_argument("-o", help = "Output file name (Default = 'out.xlsx')",
+                    type = argparse.FileType('w'))
+
+args = parser.parse_args()
+
+#Stores command line inputs as variables
+
+input_file_name = args.i
+gene_information_file_name = args.g
+output_file_name = args.o
+
+
+dataframe = []
+
+#Sets up counters
+first = True
+file_index = 2
+
+for file in input_file_name:
+
+    file_string = str(sys.argv[file_index])
+    print(file_string + ' is done processing!')
+
+#Reads in all of the files and keeps the first 4 columns
+    read = pd.read_table(file, usecols = ["gene","CiS","FPKM","mageckPvalue"],
+                        index_col = False )
+
+#Converts all of the files to Pandas data frames
+    df = pd.DataFrame(read)
+
+    dataframe.append(df)
+
+    if(first):
+        concatted = df
+        first = False
+        concatted.rename(index = str, columns = {"FPKM_x" : "FPKM " + file_string,
+        "CiS_x" : "CiS " + file_string, "mageckPvalue_x" : "mageckPvalue " + file_string,
+        "FPKM_y" : "FPKM " + file_string, "FPKM" : "FPKM " + file_string,
+        "mageckPvalue_y" : "mageckPvalue " + file_string, "CiS_y" : "CiS " + file_string,
+        "mageckPvalue" : "mageckPvalue " + file_string, "CiS" : "CiS " + file_string},
+        inplace = True)
+
+#Concatenates all of the data frames onto the first data frame
+    else:
+        concatted = pd.merge(concatted,df,  on=["gene"], how="outer")
+
+        concatted.rename(index = str, columns = {"FPKM_x" : "FPKM " + file_string,
+        "CiS_x" : "CiS " + file_string, "mageckPvalue_x" : "mageckPvalue " + file_string,
+        "FPKM_y" : "FPKM " + file_string, "FPKM" : "FPKM " + file_string,
+        "mageckPvalue_y" : "mageckPvalue " + file_string, "CiS_y" : "CiS " + file_string,
+        "mageckPvalue" : "mageckPvalue " + file_string, "CiS" : "CiS " + file_string},
+        inplace = True)
+
+    file_index = file_index + 1
+
+read_gene = pd.read_table(gene_information_file_name, index_col = False)
+df_gene = pd.DataFrame(read_gene)
+super_concatted = pd.merge (df_gene, concatted, on = ['gene'], how = 'inner')
+
+#Makes an output file
+output_file_name_temp =  'out.xlsx'
+writer = pd.ExcelWriter(output_file_name_temp, engine='xlsxwriter')
+super_concatted.to_excel(writer)
